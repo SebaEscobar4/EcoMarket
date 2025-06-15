@@ -2,7 +2,6 @@ package com.example.EcoMarket.service;
 
 import com.example.EcoMarket.model.LoginModel;
 import com.example.EcoMarket.repository.LoginRepository;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -13,7 +12,7 @@ public class LoginService {
 
     private final LoginRepository loginRepository;
 
-    @Autowired 
+     
     public LoginService(LoginRepository loginRepository) {
         this.loginRepository = loginRepository;
     }
