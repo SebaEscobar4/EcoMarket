@@ -14,7 +14,7 @@ import jakarta.persistence.Table;
 @NoArgsConstructor
 
 @Entity
-@Table(name = "Tienda " )
+@Table(name = "Tienda" )
 
 
 
