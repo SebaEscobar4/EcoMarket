@@ -47,9 +47,9 @@ public class TiendaService {
         }
     }
 
-    public boolean eliminarLogin(String rut) {
-        if (tiendaRepository.existsById(rut)) {
-            tiendaRepository.deleteById(rut);
+    public boolean eliminarTienda(String id) {
+        if (tiendaRepository.existsById(id)) {
+            tiendaRepository.deleteById(id);
             return true;
         }
         return false;
