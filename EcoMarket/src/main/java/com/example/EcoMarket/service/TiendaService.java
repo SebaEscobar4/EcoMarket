@@ -1,5 +1,5 @@
 package com.example.EcoMarket.service;
-
+/*importaciones de nuestros otros packages */
 import com.example.EcoMarket.model.TiendaModel;
 import com.example.EcoMarket.repository.TiendaRepository;
 import org.springframework.stereotype.Service;
