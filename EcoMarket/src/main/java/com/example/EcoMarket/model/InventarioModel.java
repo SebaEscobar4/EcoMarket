@@ -8,6 +8,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
+import java.time.LocalDate;
 
 @Data
 @AllArgsConstructor
@@ -22,6 +23,6 @@ public class InventarioModel {
     @Id
     private String id;
     private String nombreProducto;
-    private int fechaCad;
+    private LocalDate fechaCad;
     private String paisCreacion;
 }
