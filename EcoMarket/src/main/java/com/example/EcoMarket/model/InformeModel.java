@@ -17,12 +17,12 @@ import java.time.LocalDate;
 @Entity
 @Table(name = "Informe")
 public class InformeModel {
-    
+
     @Id
     private String id;
 
     private String titulo;
     private String descripcion;
     private LocalDate fechaCreacion;
-    private String autor; 
+    private String autor;
 }
