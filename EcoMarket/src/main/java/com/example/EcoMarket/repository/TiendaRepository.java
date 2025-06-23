@@ -5,11 +5,10 @@ import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
 
+
+
 @Repository
-
-public interface  TiendaRepository extends JpaRepository<TiendaModel, String> {
-
-    Optional <TiendaModel> findByRut(String id);
-    
+public interface TiendaRepository extends JpaRepository<TiendaModel, String> {
 
 }
+
