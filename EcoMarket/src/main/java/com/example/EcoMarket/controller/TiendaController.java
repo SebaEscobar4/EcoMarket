@@ -30,7 +30,7 @@ public class TiendaController {
     public ResponseEntity<TiendaModel> getTiendaById(@PathVariable String id) {
         Optional<TiendaModel> tienda = tiendaService.buscarTiendaPorId(id);
         return tienda.map(value -> new ResponseEntity<>(value, HttpStatus.OK))
-                     .orElseGet(() -> new ResponseEntity<>(HttpStatus.NOT_FOUND));
+                .orElseGet(() -> new ResponseEntity<>(HttpStatus.NOT_FOUND));
     }
 
     @PostMapping
@@ -59,4 +59,3 @@ public class TiendaController {
         }
     }
 }
-
