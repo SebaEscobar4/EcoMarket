@@ -7,12 +7,17 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 
+import org.springframework.hateoas.EntityModel;
+import org.springframework.hateoas.CollectionModel;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
+
+import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.*;
 
 @RestController
 @RequestMapping("/api/tiendas")
@@ -28,9 +33,17 @@ public class TiendaController {
     @Operation(summary = "Obtener todas las tiendas")
     @ApiResponse(responseCode = "200", description = "Tiendas encontradas exitosamente")
     @GetMapping
-    public ResponseEntity<List<TiendaModel>> getAllTiendas() {
-        List<TiendaModel> tiendas = tiendaService.obtenerTodasLasTiendas();
-        return new ResponseEntity<>(tiendas, HttpStatus.OK);
+    public ResponseEntity<CollectionModel<EntityModel<TiendaModel>>> getAllTiendas() {
+        List<EntityModel<TiendaModel>> tiendas = tiendaService.obtenerTodasLasTiendas()
+                .stream()
+                .map(tienda -> EntityModel.of(tienda,
+                        linkTo(methodOn(TiendaController.class).getTiendaById(tienda.getId())).withSelfRel()))
+                .collect(Collectors.toList());
+
+        CollectionModel<EntityModel<TiendaModel>> coleccion = CollectionModel.of(tiendas,
+                linkTo(methodOn(TiendaController.class).getAllTiendas()).withSelfRel());
+
+        return new ResponseEntity<>(coleccion, HttpStatus.OK);
     }
 
     @Operation(summary = "Obtener una tienda por su ID")
@@ -39,18 +52,27 @@ public class TiendaController {
             @ApiResponse(responseCode = "404", description = "Tienda no encontrada")
     })
     @GetMapping("/{id}")
-    public ResponseEntity<TiendaModel> getTiendaById(@PathVariable String id) {
+    public ResponseEntity<EntityModel<TiendaModel>> getTiendaById(@PathVariable String id) {
         Optional<TiendaModel> tienda = tiendaService.buscarTiendaPorId(id);
-        return tienda.map(value -> new ResponseEntity<>(value, HttpStatus.OK))
-                .orElseGet(() -> new ResponseEntity<>(HttpStatus.NOT_FOUND));
+
+        return tienda.map(value -> {
+            EntityModel<TiendaModel> recurso = EntityModel.of(value,
+                    linkTo(methodOn(TiendaController.class).getTiendaById(id)).withSelfRel(),
+                    linkTo(methodOn(TiendaController.class).getAllTiendas()).withRel("tiendas"));
+            return new ResponseEntity<>(recurso, HttpStatus.OK);
+        }).orElseGet(() -> new ResponseEntity<>(HttpStatus.NOT_FOUND));
     }
 
     @Operation(summary = "Crear una nueva tienda")
     @ApiResponse(responseCode = "201", description = "Tienda creada exitosamente")
     @PostMapping
-    public ResponseEntity<TiendaModel> createTienda(@RequestBody TiendaModel tienda) {
+    public ResponseEntity<EntityModel<TiendaModel>> createTienda(@RequestBody TiendaModel tienda) {
         TiendaModel savedTienda = tiendaService.guardarTienda(tienda);
-        return new ResponseEntity<>(savedTienda, HttpStatus.CREATED);
+        EntityModel<TiendaModel> recurso = EntityModel.of(savedTienda,
+                linkTo(methodOn(TiendaController.class).getTiendaById(savedTienda.getId())).withSelfRel(),
+                linkTo(methodOn(TiendaController.class).getAllTiendas()).withRel("tiendas"));
+
+        return new ResponseEntity<>(recurso, HttpStatus.CREATED);
     }
 
     @Operation(summary = "Actualizar una tienda existente")
@@ -59,10 +81,13 @@ public class TiendaController {
             @ApiResponse(responseCode = "404", description = "Tienda no encontrada")
     })
     @PutMapping
-    public ResponseEntity<TiendaModel> updateTienda(@RequestBody TiendaModel tienda) {
+    public ResponseEntity<EntityModel<TiendaModel>> updateTienda(@RequestBody TiendaModel tienda) {
         TiendaModel updatedTienda = tiendaService.actualizarTienda(tienda);
         if (updatedTienda != null) {
-            return new ResponseEntity<>(updatedTienda, HttpStatus.OK);
+            EntityModel<TiendaModel> recurso = EntityModel.of(updatedTienda,
+                    linkTo(methodOn(TiendaController.class).getTiendaById(updatedTienda.getId())).withSelfRel(),
+                    linkTo(methodOn(TiendaController.class).getAllTiendas()).withRel("tiendas"));
+            return new ResponseEntity<>(recurso, HttpStatus.OK);
         } else {
             return new ResponseEntity<>(HttpStatus.NOT_FOUND);
         }

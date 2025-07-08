@@ -2,125 +2,193 @@ package com.example.EcoMarket.controller;
 
 import com.example.EcoMarket.model.TiendaModel;
 import com.example.EcoMarket.service.TiendaService;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mockito;
 
-import org.springframework.http.MediaType;
-import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+
+import org.mockito.MockitoAnnotations;
+
+import org.springframework.hateoas.EntityModel;
+import org.springframework.hateoas.CollectionModel;
+
+import org.springframework.http.ResponseEntity;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.when;
+import static org.assertj.core.api.Assertions.assertThat;
 
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
-
-import com.fasterxml.jackson.databind.ObjectMapper;
+import static org.mockito.Mockito.*;
 
 public class TiendaControllerTest {
 
-    private MockMvc mockMvc;
+    @Mock
     private TiendaService tiendaService;
+
+    @InjectMocks
     private TiendaController tiendaController;
-    private ObjectMapper objectMapper;
 
     @BeforeEach
-    public void setUp() {
-        tiendaService = Mockito.mock(TiendaService.class);
-        tiendaController = new TiendaController(tiendaService);
-        mockMvc = MockMvcBuilders.standaloneSetup(tiendaController).build();
-        objectMapper = new ObjectMapper();
+    void setUp() {
+        MockitoAnnotations.openMocks(this);
     }
 
     @Test
-    public void testGetAllTiendas() throws Exception {
-        TiendaModel tienda1 = new TiendaModel("1", "Tienda 1", "Calle 123", "123456789", "tienda1@mail.com");
-        TiendaModel tienda2 = new TiendaModel("2", "Tienda 2", "Avenida 456", "987654321", "tienda2@mail.com");
+    void testGetAllTiendas() {
+        // Arrange
+        TiendaModel t1 = new TiendaModel("1", "Tienda A", "Calle A 123", "123456789", "a@tienda.com");
+        TiendaModel t2 = new TiendaModel("2", "Tienda B", "Calle B 456", "987654321", "b@tienda.com");
 
-        when(tiendaService.obtenerTodasLasTiendas()).thenReturn(Arrays.asList(tienda1, tienda2));
+        when(tiendaService.obtenerTodasLasTiendas()).thenReturn(Arrays.asList(t1, t2));
 
-        mockMvc.perform(get("/api/tiendas"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(2))
-                .andExpect(jsonPath("$[0].id").value("1"))
-                .andExpect(jsonPath("$[1].nombre").value("Tienda 2"));
+        // Act
+        ResponseEntity<CollectionModel<EntityModel<TiendaModel>>> response = tiendaController.getAllTiendas();
+
+        // Assert
+        assertThat(response.getStatusCodeValue()).isEqualTo(200);
+
+        List<EntityModel<TiendaModel>> listaTiendas = response.getBody().getContent().stream().toList();
+        assertThat(listaTiendas).hasSize(2);
+
+        assertThat(listaTiendas.get(0).getContent().getNombre()).isEqualTo("Tienda A");
+        assertThat(listaTiendas.get(0).getContent().getDireccion()).isEqualTo("Calle A 123");
+        assertThat(listaTiendas.get(0).getContent().getTelefono()).isEqualTo("123456789");
+        assertThat(listaTiendas.get(0).getContent().getCorreo()).isEqualTo("a@tienda.com");
+
+        assertThat(listaTiendas.get(1).getContent().getNombre()).isEqualTo("Tienda B");
+        assertThat(listaTiendas.get(1).getContent().getDireccion()).isEqualTo("Calle B 456");
+        assertThat(listaTiendas.get(1).getContent().getTelefono()).isEqualTo("987654321");
+        assertThat(listaTiendas.get(1).getContent().getCorreo()).isEqualTo("b@tienda.com");
+
+        // Verificar que los links existan
+        assertThat(listaTiendas.get(0).getLink("self")).isPresent();
+        assertThat(listaTiendas.get(1).getLink("self")).isPresent();
+
+        assertThat(response.getBody().getLink("self")).isPresent();
+
+        verify(tiendaService, times(1)).obtenerTodasLasTiendas();
     }
 
     @Test
-    public void testGetTiendaById_Found() throws Exception {
-        TiendaModel tienda = new TiendaModel("1", "Tienda 1", "Calle 123", "123456789", "tienda1@mail.com");
+    void testGetTiendaByIdFound() {
+        // Arrange
+        TiendaModel t1 = new TiendaModel("1", "Tienda A", "Calle A 123", "123456789", "a@tienda.com");
+        when(tiendaService.buscarTiendaPorId("1")).thenReturn(Optional.of(t1));
 
-        when(tiendaService.buscarTiendaPorId("1")).thenReturn(Optional.of(tienda));
+        // Act
+        ResponseEntity<EntityModel<TiendaModel>> response = tiendaController.getTiendaById("1");
 
-        mockMvc.perform(get("/api/tiendas/1"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.nombre").value("Tienda 1"));
+        // Assert
+        assertThat(response.getStatusCodeValue()).isEqualTo(200);
+        EntityModel<TiendaModel> recurso = response.getBody();
+
+        assertThat(recurso.getContent().getNombre()).isEqualTo("Tienda A");
+        assertThat(recurso.getContent().getDireccion()).isEqualTo("Calle A 123");
+        assertThat(recurso.getContent().getTelefono()).isEqualTo("123456789");
+        assertThat(recurso.getContent().getCorreo()).isEqualTo("a@tienda.com");
+
+        assertThat(recurso.getLink("self")).isPresent();
+        assertThat(recurso.getLink("tiendas")).isPresent();
+
+        verify(tiendaService, times(1)).buscarTiendaPorId("1");
     }
 
     @Test
-    public void testGetTiendaById_NotFound() throws Exception {
-        when(tiendaService.buscarTiendaPorId("1")).thenReturn(Optional.empty());
+    void testGetTiendaByIdNotFound() {
+        // Arrange
+        when(tiendaService.buscarTiendaPorId("99")).thenReturn(Optional.empty());
 
-        mockMvc.perform(get("/api/tiendas/1"))
-                .andExpect(status().isNotFound());
+        // Act
+        ResponseEntity<EntityModel<TiendaModel>> response = tiendaController.getTiendaById("99");
+
+        // Assert
+        assertThat(response.getStatusCodeValue()).isEqualTo(404);
+        verify(tiendaService, times(1)).buscarTiendaPorId("99");
     }
 
     @Test
-    public void testCreateTienda() throws Exception {
-        TiendaModel tienda = new TiendaModel("1", "Tienda 1", "Calle 123", "123456789", "tienda1@mail.com");
+    void testCreateTienda() {
+        // Arrange
+        TiendaModel input = new TiendaModel("1", "Tienda A", "Calle A 123", "123456789", "a@tienda.com");
+        TiendaModel saved = new TiendaModel("1", "Tienda A", "Calle A 123", "123456789", "a@tienda.com");
 
-        when(tiendaService.guardarTienda(any(TiendaModel.class))).thenReturn(tienda);
+        when(tiendaService.guardarTienda(input)).thenReturn(saved);
 
-        mockMvc.perform(post("/api/tiendas")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(tienda)))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.id").value("1"))
-                .andExpect(jsonPath("$.nombre").value("Tienda 1"));
+        // Act
+        ResponseEntity<EntityModel<TiendaModel>> response = tiendaController.createTienda(input);
+
+        // Assert
+        assertThat(response.getStatusCodeValue()).isEqualTo(201);
+        assertThat(response.getBody().getContent().getNombre()).isEqualTo("Tienda A");
+        assertThat(response.getBody().getContent().getDireccion()).isEqualTo("Calle A 123");
+        assertThat(response.getBody().getContent().getTelefono()).isEqualTo("123456789");
+        assertThat(response.getBody().getContent().getCorreo()).isEqualTo("a@tienda.com");
+        assertThat(response.getBody().getLink("self")).isPresent();
+
+        verify(tiendaService, times(1)).guardarTienda(input);
     }
 
     @Test
-    public void testUpdateTienda_Found() throws Exception {
-        TiendaModel tienda = new TiendaModel("1", "Tienda Actualizada", "Calle 123", "123456789", "tienda1@mail.com");
+    void testUpdateTiendaFound() {
+        // Arrange
+        TiendaModel input = new TiendaModel("1", "Tienda A", "Calle A 123", "123456789", "a@tienda.com");
+        TiendaModel updated = new TiendaModel("1", "Tienda A Actualizada", "Calle A 123", "123456789", "a@tienda.com");
 
-        when(tiendaService.actualizarTienda(any(TiendaModel.class))).thenReturn(tienda);
+        when(tiendaService.actualizarTienda(input)).thenReturn(updated);
 
-        mockMvc.perform(put("/api/tiendas")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(tienda)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.nombre").value("Tienda Actualizada"));
+        // Act
+        ResponseEntity<EntityModel<TiendaModel>> response = tiendaController.updateTienda(input);
+
+        // Assert
+        assertThat(response.getStatusCodeValue()).isEqualTo(200);
+        assertThat(response.getBody().getContent().getNombre()).isEqualTo("Tienda A Actualizada");
+        assertThat(response.getBody().getLink("self")).isPresent();
+
+        verify(tiendaService, times(1)).actualizarTienda(input);
     }
 
     @Test
-    public void testUpdateTienda_NotFound() throws Exception {
-        TiendaModel tienda = new TiendaModel("1", "Tienda Actualizada", "Calle 123", "123456789", "tienda1@mail.com");
+    void testUpdateTiendaNotFound() {
+        // Arrange
+        TiendaModel input = new TiendaModel("99", "Tienda X", "Calle X 123", "111111111", "x@tienda.com");
 
-        when(tiendaService.actualizarTienda(any(TiendaModel.class))).thenReturn(null);
+        when(tiendaService.actualizarTienda(input)).thenReturn(null);
 
-        mockMvc.perform(put("/api/tiendas")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(tienda)))
-                .andExpect(status().isNotFound());
+        // Act
+        ResponseEntity<EntityModel<TiendaModel>> response = tiendaController.updateTienda(input);
+
+        // Assert
+        assertThat(response.getStatusCodeValue()).isEqualTo(404);
+        verify(tiendaService, times(1)).actualizarTienda(input);
     }
 
     @Test
-    public void testDeleteTienda_Deleted() throws Exception {
+    void testDeleteTiendaSuccess() {
+        // Arrange
         when(tiendaService.eliminarTienda("1")).thenReturn(true);
 
-        mockMvc.perform(delete("/api/tiendas/1"))
-                .andExpect(status().isNoContent());
+        // Act
+        ResponseEntity<Void> response = tiendaController.deleteTienda("1");
+
+        // Assert
+        assertThat(response.getStatusCodeValue()).isEqualTo(204);
+        verify(tiendaService, times(1)).eliminarTienda("1");
     }
 
     @Test
-    public void testDeleteTienda_NotFound() throws Exception {
-        when(tiendaService.eliminarTienda("1")).thenReturn(false);
+    void testDeleteTiendaNotFound() {
+        // Arrange
+        when(tiendaService.eliminarTienda("99")).thenReturn(false);
 
-        mockMvc.perform(delete("/api/tiendas/1"))
-                .andExpect(status().isNotFound());
+        // Act
+        ResponseEntity<Void> response = tiendaController.deleteTienda("99");
+
+        // Assert
+        assertThat(response.getStatusCodeValue()).isEqualTo(404);
+        verify(tiendaService, times(1)).eliminarTienda("99");
     }
 }
