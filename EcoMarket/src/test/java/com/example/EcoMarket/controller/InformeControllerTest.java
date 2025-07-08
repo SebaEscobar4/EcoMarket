@@ -2,114 +2,153 @@ package com.example.EcoMarket.controller;
 
 import com.example.EcoMarket.model.InformeModel;
 import com.example.EcoMarket.service.InformeService;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
-import org.springframework.http.ResponseEntity;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+
+import org.springframework.http.MediaType;
+
+import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDate;
-import java.util.List;
+import java.util.Arrays;
 import java.util.Optional;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 
-class InformeControllerTest {
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
+
+@WebMvcTest(InformeController.class)
+public class InformeControllerTest {
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @MockBean
     private InformeService informeService;
-    private InformeController controller;
+
+    @Autowired
+    private ObjectMapper objectMapper; // Para convertir objetos a JSON
+
+    private InformeModel informe1;
+    private InformeModel informe2;
 
     @BeforeEach
-    void setUp() {
-        informeService = mock(InformeService.class);
-        controller = new InformeController(informeService);
+    void setup() {
+        informe1 = new InformeModel("1", "Título 1", "Descripción 1", LocalDate.of(2025,7,8), "Autor1");
+        informe2 = new InformeModel("2", "Título 2", "Descripción 2", LocalDate.of(2025,7,7), "Autor2");
     }
 
     @Test
-    void obtenerTodos_retornaLista() {
-        List<InformeModel> lista = List.of(new InformeModel("1", "Titulo", "Desc", LocalDate.now(), "Autor"));
-        when(informeService.obtenerTodosLosInformes()).thenReturn(lista);
+    void testObtenerTodos() throws Exception {
+        Mockito.when(informeService.obtenerTodosLosInformes())
+                .thenReturn(Arrays.asList(informe1, informe2));
 
-        ResponseEntity<List<InformeModel>> response = controller.obtenerTodos();
-
-        assertEquals(200, response.getStatusCodeValue());
-        assertEquals(1, response.getBody().size());
+        mockMvc.perform(get("/api/v1/informes")
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$._embedded.informeModelList").exists())
+                .andExpect(jsonPath("$._embedded.informeModelList.length()").value(2))
+                .andExpect(jsonPath("$._embedded.informeModelList[0].id").value("1"))
+                .andExpect(jsonPath("$._embedded.informeModelList[1].id").value("2"));
     }
 
     @Test
-    void obtenerPorId_existente_retornaInforme() {
-        InformeModel informe = new InformeModel("1", "Titulo", "Desc", LocalDate.now(), "Autor");
-        when(informeService.buscarPorId("1")).thenReturn(Optional.of(informe));
+    void testObtenerPorId_Existe() throws Exception {
+        Mockito.when(informeService.buscarPorId("1"))
+                .thenReturn(Optional.of(informe1));
 
-        ResponseEntity<InformeModel> response = controller.obtenerPorId("1");
-
-        assertEquals(200, response.getStatusCodeValue());
-        assertEquals("1", response.getBody().getId());
+        mockMvc.perform(get("/api/v1/informes/1")
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value("1"))
+                .andExpect(jsonPath("$.titulo").value("Título 1"));
     }
 
     @Test
-    void obtenerPorId_noExistente_retorna404() {
-        when(informeService.buscarPorId("1")).thenReturn(Optional.empty());
+    void testObtenerPorId_NoExiste() throws Exception {
+        Mockito.when(informeService.buscarPorId("999"))
+                .thenReturn(Optional.empty());
 
-        ResponseEntity<InformeModel> response = controller.obtenerPorId("1");
-
-        assertEquals(404, response.getStatusCodeValue());
+        mockMvc.perform(get("/api/v1/informes/999")
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isNotFound());
     }
 
     @Test
-    void crearInforme_retorna201() {
-        InformeModel informe = new InformeModel("1", "Titulo", "Desc", LocalDate.now(), "Autor");
-        when(informeService.guardarInforme(informe)).thenReturn(informe);
+    void testCrearInforme() throws Exception {
+        InformeModel nuevoInforme = new InformeModel("3", "Nuevo título", "Nueva descripción", LocalDate.now(), "Autor3");
 
-        ResponseEntity<InformeModel> response = controller.crearInforme(informe);
+        Mockito.when(informeService.guardarInforme(any(InformeModel.class))).thenReturn(nuevoInforme);
 
-        assertEquals(201, response.getStatusCodeValue());
+        mockMvc.perform(post("/api/v1/informes")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(nuevoInforme)))
+                .andExpect(status().isCreated())
+                .andExpect(header().string("Location", "http://localhost/api/v1/informes/3"))
+                .andExpect(jsonPath("$.id").value("3"))
+                .andExpect(jsonPath("$.titulo").value("Nuevo título"));
     }
 
     @Test
-    void actualizarInforme_idDistinto_retorna400() {
-        InformeModel informe = new InformeModel("2", "X", "Y", LocalDate.now(), "Z");
+    void testActualizarInforme_Exito() throws Exception {
+        InformeModel actualizado = new InformeModel("1", "Título actualizado", "Descripción actualizada", LocalDate.now(), "Autor1");
 
-        ResponseEntity<InformeModel> response = controller.actualizarInforme("1", informe);
+        Mockito.when(informeService.actualizarInforme(any(InformeModel.class))).thenReturn(actualizado);
 
-        assertEquals(400, response.getStatusCodeValue());
+        mockMvc.perform(put("/api/v1/informes/1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(actualizado)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.titulo").value("Título actualizado"));
     }
 
     @Test
-    void actualizarInforme_existente_retorna200() {
-        InformeModel informe = new InformeModel("1", "X", "Y", LocalDate.now(), "Z");
-        when(informeService.actualizarInforme(informe)).thenReturn(informe);
+    void testActualizarInforme_IdNoCoincide() throws Exception {
+        InformeModel actualizado = new InformeModel("2", "Título actualizado", "Descripción actualizada", LocalDate.now(), "Autor1");
 
-        ResponseEntity<InformeModel> response = controller.actualizarInforme("1", informe);
-
-        assertEquals(200, response.getStatusCodeValue());
+        mockMvc.perform(put("/api/v1/informes/1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(actualizado)))
+                .andExpect(status().isBadRequest());
     }
 
     @Test
-    void actualizarInforme_noExiste_retorna404() {
-        InformeModel informe = new InformeModel("1", "X", "Y", LocalDate.now(), "Z");
-        when(informeService.actualizarInforme(informe)).thenReturn(null);
+    void testActualizarInforme_NoEncontrado() throws Exception {
+        InformeModel actualizado = new InformeModel("1", "Título actualizado", "Descripción actualizada", LocalDate.now(), "Autor1");
 
-        ResponseEntity<InformeModel> response = controller.actualizarInforme("1", informe);
+        Mockito.when(informeService.actualizarInforme(any(InformeModel.class))).thenReturn(null);
 
-        assertEquals(404, response.getStatusCodeValue());
+        mockMvc.perform(put("/api/v1/informes/1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(actualizado)))
+                .andExpect(status().isNotFound());
     }
 
     @Test
-    void eliminarInforme_existente_retorna204() {
-        when(informeService.eliminarInforme("1")).thenReturn(true);
+    void testEliminarInforme_Exito() throws Exception {
+        Mockito.when(informeService.eliminarInforme("1")).thenReturn(true);
 
-        ResponseEntity<Void> response = controller.eliminarInforme("1");
-
-        assertEquals(204, response.getStatusCodeValue());
+        mockMvc.perform(delete("/api/v1/informes/1"))
+                .andExpect(status().isNoContent());
     }
 
     @Test
-    void eliminarInforme_noExiste_retorna404() {
-        when(informeService.eliminarInforme("1")).thenReturn(false);
+    void testEliminarInforme_NoEncontrado() throws Exception {
+        Mockito.when(informeService.eliminarInforme("999")).thenReturn(false);
 
-        ResponseEntity<Void> response = controller.eliminarInforme("1");
-
-        assertEquals(404, response.getStatusCodeValue());
+        mockMvc.perform(delete("/api/v1/informes/999"))
+                .andExpect(status().isNotFound());
     }
+
 }
