@@ -1,0 +1,4 @@
+NSERT INTO promocion (nombre, descripcion, descuento, fecha_inicio, fecha_fin) VALUES
+                                                                                    ('Promo Invierno', '30% de descuento en productos seleccionados', 30.0, '2025-06-01', '2025-06-30'),
+                                                                                    ('Promo Verano', '15% de descuento en línea de verano', 15.0, '2025-12-01', '2026-01-15'),
+                                                                                    ('Black Friday', '50% en toda la tienda por 24 horas', 50.0, '2025-11-29', '2025-11-30');
