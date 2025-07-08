@@ -8,12 +8,16 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 
+import org.springframework.hateoas.EntityModel;
+import org.springframework.hateoas.CollectionModel;
+import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.*;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Optional;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/inventario")
@@ -31,9 +35,16 @@ public class InventarioController {
             @ApiResponse(responseCode = "200", description = "Productos obtenidos correctamente")
     })
     @GetMapping
-    public ResponseEntity<List<InventarioModel>> getAllInventario() {
-        List<InventarioModel> inventario = inventarioService.obtenerTodosLosProductos();
-        return ResponseEntity.ok(inventario);
+    public ResponseEntity<CollectionModel<EntityModel<InventarioModel>>> getAllInventario() {
+        List<EntityModel<InventarioModel>> inventario = inventarioService.obtenerTodosLosProductos()
+                .stream()
+                .map(this::toModel)
+                .collect(Collectors.toList());
+
+        CollectionModel<EntityModel<InventarioModel>> collectionModel = CollectionModel.of(inventario,
+                linkTo(methodOn(InventarioController.class).getAllInventario()).withSelfRel());
+
+        return ResponseEntity.ok(collectionModel);
     }
 
     @Operation(summary = "Obtener un producto del inventario por ID")
@@ -42,8 +53,9 @@ public class InventarioController {
             @ApiResponse(responseCode = "404", description = "Producto no encontrado")
     })
     @GetMapping("/{id}")
-    public ResponseEntity<InventarioModel> getInventarioById(@PathVariable String id) {
+    public ResponseEntity<EntityModel<InventarioModel>> getInventarioById(@PathVariable String id) {
         return inventarioService.buscarPorId(id)
+                .map(this::toModel)
                 .map(ResponseEntity::ok)
                 .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).build());
     }
@@ -53,9 +65,13 @@ public class InventarioController {
             @ApiResponse(responseCode = "201", description = "Producto creado correctamente")
     })
     @PostMapping
-    public ResponseEntity<InventarioModel> createProducto(@RequestBody InventarioModel producto) {
+    public ResponseEntity<EntityModel<InventarioModel>> createProducto(@RequestBody InventarioModel producto) {
         InventarioModel savedProducto = inventarioService.guardarProducto(producto);
-        return ResponseEntity.status(HttpStatus.CREATED).body(savedProducto);
+        EntityModel<InventarioModel> entityModel = toModel(savedProducto);
+
+        return ResponseEntity
+                .created(entityModel.getRequiredLink("self").toUri())
+                .body(entityModel);
     }
 
     @Operation(summary = "Actualizar un producto existente en el inventario")
@@ -64,11 +80,11 @@ public class InventarioController {
             @ApiResponse(responseCode = "404", description = "Producto no encontrado")
     })
     @PutMapping("/{id}")
-    public ResponseEntity<InventarioModel> updateProducto(@PathVariable String id, @RequestBody InventarioModel producto) {
+    public ResponseEntity<EntityModel<InventarioModel>> updateProducto(@PathVariable String id, @RequestBody InventarioModel producto) {
         producto.setId(id); // Asegura que el ID en la URL prevalezca
         InventarioModel updatedProducto = inventarioService.actualizarProducto(producto);
         if (updatedProducto != null) {
-            return ResponseEntity.ok(updatedProducto);
+            return ResponseEntity.ok(toModel(updatedProducto));
         } else {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
         }
@@ -85,5 +101,14 @@ public class InventarioController {
         return deleted
                 ? ResponseEntity.noContent().build()
                 : ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+    }
+
+    // Método auxiliar para construir el EntityModel con enlaces HATEOAS
+    private EntityModel<InventarioModel> toModel(InventarioModel producto) {
+        return EntityModel.of(producto,
+                linkTo(methodOn(InventarioController.class).getInventarioById(producto.getId())).withSelfRel(),
+                linkTo(methodOn(InventarioController.class).getAllInventario()).withRel("inventario"),
+                linkTo(methodOn(InventarioController.class).updateProducto(producto.getId(), producto)).withRel("update"),
+                linkTo(methodOn(InventarioController.class).deleteProducto(producto.getId())).withRel("delete"));
     }
 }
