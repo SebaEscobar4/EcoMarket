@@ -7,130 +7,122 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.Arrays;
-import java.util.List;
 import java.util.Optional;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-class LoginControllerTest {
+import com.fasterxml.jackson.databind.ObjectMapper;
 
+@WebMvcTest(LoginController.class)
+public class LoginControllerTest {
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @MockBean
     private LoginService loginService;
-    private LoginController loginController;
+
+    private LoginModel login1;
+    private LoginModel login2;
 
     @BeforeEach
     void setUp() {
-        loginService = mock(LoginService.class);
-        loginController = new LoginController(loginService);
-    }
-
-    private LoginModel crearLoginEjemplo() {
-        return new LoginModel(
-                "12345678-9",
-                "Juan",
-                "Carlos",
-                "Pérez",
-                "Gómez",
-                912345678,
-                "Av. Siempre Viva 123",
-                8320000,
-                "juan@example.com"
-        );
+        login1 = new LoginModel("12345678-9", "Pedro", "José", "Pérez", "López", 912345678, "Calle 1", 1234567, "pedro@mail.com");
+        login2 = new LoginModel("98765432-1", "Juan", "Carlos", "Ramírez", "Gómez", 987654321, "Calle 2", 7654321, "juan@mail.com");
     }
 
     @Test
-    void testGetAllLogins() {
-        List<LoginModel> logins = Arrays.asList(crearLoginEjemplo());
+    void testGetAllLogins() throws Exception {
+        when(loginService.obtenerTodosLosLogins()).thenReturn(Arrays.asList(login1, login2));
 
-        when(loginService.obtenerTodosLosLogins()).thenReturn(logins);
-
-        ResponseEntity<List<LoginModel>> response = loginController.getAllLogins();
-
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertEquals(1, response.getBody().size());
-        verify(loginService, times(1)).obtenerTodosLosLogins();
+        mockMvc.perform(get("/api/logins"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("_embedded.loginModelList").exists());
     }
 
     @Test
-    void testGetLoginByRut_Found() {
-        LoginModel login = crearLoginEjemplo();
-        when(loginService.buscarLoginPorRut("12345678-9")).thenReturn(Optional.of(login));
+    void testGetLoginByRutFound() throws Exception {
+        when(loginService.buscarLoginPorRut("12345678-9")).thenReturn(Optional.of(login1));
 
-        ResponseEntity<LoginModel> response = loginController.getLoginByRut("12345678-9");
-
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertEquals(login, response.getBody());
-        verify(loginService, times(1)).buscarLoginPorRut("12345678-9");
+        mockMvc.perform(get("/api/logins/12345678-9"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.rut").value("12345678-9"))
+                .andExpect(jsonPath("$.nombreP").value("Pedro"));
     }
 
     @Test
-    void testGetLoginByRut_NotFound() {
-        when(loginService.buscarLoginPorRut("99999999-9")).thenReturn(Optional.empty());
+    void testGetLoginByRutNotFound() throws Exception {
+        when(loginService.buscarLoginPorRut("00000000-0")).thenReturn(Optional.empty());
 
-        ResponseEntity<LoginModel> response = loginController.getLoginByRut("99999999-9");
-
-        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
-        assertNull(response.getBody());
-        verify(loginService, times(1)).buscarLoginPorRut("99999999-9");
+        mockMvc.perform(get("/api/logins/00000000-0"))
+                .andExpect(status().isNotFound());
     }
 
     @Test
-    void testCreateLogin() {
-        LoginModel login = crearLoginEjemplo();
-        when(loginService.guardarLogin(login)).thenReturn(login);
+    void testCreateLogin() throws Exception {
+        when(loginService.guardarLogin(any(LoginModel.class))).thenReturn(login1);
 
-        ResponseEntity<LoginModel> response = loginController.createLogin(login);
-
-        assertEquals(HttpStatus.CREATED, response.getStatusCode());
-        assertEquals(login, response.getBody());
-        verify(loginService, times(1)).guardarLogin(login);
+        mockMvc.perform(post("/api/logins")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(asJsonString(login1)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.rut").value("12345678-9"));
     }
 
     @Test
-    void testUpdateLogin_Found() {
-        LoginModel login = crearLoginEjemplo();
-        when(loginService.actualizarLogin(login)).thenReturn(login);
+    void testUpdateLoginSuccess() throws Exception {
+        when(loginService.actualizarLogin(any(LoginModel.class))).thenReturn(login1);
 
-        ResponseEntity<LoginModel> response = loginController.updateLogin(login);
-
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertEquals(login, response.getBody());
-        verify(loginService, times(1)).actualizarLogin(login);
+        mockMvc.perform(put("/api/logins")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(asJsonString(login1)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.rut").value("12345678-9"));
     }
 
     @Test
-    void testUpdateLogin_NotFound() {
-        LoginModel login = crearLoginEjemplo();
-        when(loginService.actualizarLogin(login)).thenReturn(null);
+    void testUpdateLoginNotFound() throws Exception {
+        when(loginService.actualizarLogin(any(LoginModel.class))).thenReturn(null);
 
-        ResponseEntity<LoginModel> response = loginController.updateLogin(login);
-
-        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
-        assertNull(response.getBody());
-        verify(loginService, times(1)).actualizarLogin(login);
+        mockMvc.perform(put("/api/logins")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(asJsonString(login1)))
+                .andExpect(status().isNotFound());
     }
 
     @Test
-    void testDeleteLogin_Found() {
+    void testDeleteLoginSuccess() throws Exception {
         when(loginService.eliminarLogin("12345678-9")).thenReturn(true);
 
-        ResponseEntity<Void> response = loginController.deleteLogin("12345678-9");
-
-        assertEquals(HttpStatus.NO_CONTENT, response.getStatusCode());
-        verify(loginService, times(1)).eliminarLogin("12345678-9");
+        mockMvc.perform(delete("/api/logins/12345678-9"))
+                .andExpect(status().isNoContent());
     }
 
     @Test
-    void testDeleteLogin_NotFound() {
-        when(loginService.eliminarLogin("99999999-9")).thenReturn(false);
+    void testDeleteLoginNotFound() throws Exception {
+        when(loginService.eliminarLogin("00000000-0")).thenReturn(false);
 
-        ResponseEntity<Void> response = loginController.deleteLogin("99999999-9");
+        mockMvc.perform(delete("/api/logins/00000000-0"))
+                .andExpect(status().isNotFound());
+    }
 
-        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
-        verify(loginService, times(1)).eliminarLogin("99999999-9");
+    // Conversor de objeto a JSON
+    private static String asJsonString(final Object obj) {
+        try {
+            return new ObjectMapper().writeValueAsString(obj);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 }
