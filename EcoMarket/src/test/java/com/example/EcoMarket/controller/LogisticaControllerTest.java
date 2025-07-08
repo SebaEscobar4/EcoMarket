@@ -2,108 +2,121 @@ package com.example.EcoMarket.controller;
 
 import com.example.EcoMarket.model.LogisticaModel;
 import com.example.EcoMarket.service.LogisticaService;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
-import org.springframework.http.ResponseEntity;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDate;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Optional;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
+import static org.hamcrest.Matchers.containsString;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+
+@WebMvcTest(LogisticaController.class)
 public class LogisticaControllerTest {
 
+    @Autowired
+    private MockMvc mockMvc;
+
+    @MockBean
     private LogisticaService logisticaService;
-    private LogisticaController logisticaController;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    private LogisticaModel logistica;
 
     @BeforeEach
-    public void setUp() {
-        logisticaService = mock(LogisticaService.class);
-        logisticaController = new LogisticaController(logisticaService);
+    public void setup() {
+        logistica = new LogisticaModel(1, "terrestre", "Santiago", LocalDate.now(), LocalDate.now().plusDays(1), "Juan Pérez");
     }
 
     @Test
-    public void testObtenerTodas() {
-        LogisticaModel log1 = new LogisticaModel(1, "terrestre", "Santiago", LocalDate.now(), LocalDate.now().plusDays(1), "Juan");
-        LogisticaModel log2 = new LogisticaModel(2, "marítimo", "Valparaíso", LocalDate.now(), LocalDate.now().plusDays(3), "Ana");
-        when(logisticaService.obtenerTodas()).thenReturn(Arrays.asList(log1, log2));
+    public void testObtenerTodas() throws Exception {
+        Mockito.when(logisticaService.obtenerTodas()).thenReturn(Arrays.asList(logistica));
 
-        ResponseEntity<List<LogisticaModel>> response = logisticaController.obtenerTodas();
-
-        assertEquals(200, response.getStatusCodeValue());
-        assertEquals(2, response.getBody().size());
+        mockMvc.perform(get("/api/v1/logistica"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("_embedded.logisticaModelList[0].id").value(logistica.getId()));
     }
 
     @Test
-    public void testObtenerPorId_Existe() {
-        LogisticaModel log = new LogisticaModel(1, "aéreo", "Iquique", LocalDate.now(), LocalDate.now().plusDays(2), "Carlos");
-        when(logisticaService.buscarPorId(1)).thenReturn(Optional.of(log));
+    public void testObtenerPorId_Existe() throws Exception {
+        Mockito.when(logisticaService.buscarPorId(1)).thenReturn(Optional.of(logistica));
 
-        ResponseEntity<LogisticaModel> response = logisticaController.obtenerPorId(1);
-
-        assertEquals(200, response.getStatusCodeValue());
-        assertEquals("aéreo", response.getBody().getTipoTransporte());
+        mockMvc.perform(get("/api/v1/logistica/1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("id").value(1))
+                .andExpect(jsonPath("tipoTransporte").value("terrestre"));
     }
 
     @Test
-    public void testObtenerPorId_NoExiste() {
-        when(logisticaService.buscarPorId(999)).thenReturn(Optional.empty());
+    public void testObtenerPorId_NoExiste() throws Exception {
+        Mockito.when(logisticaService.buscarPorId(999)).thenReturn(Optional.empty());
 
-        ResponseEntity<LogisticaModel> response = logisticaController.obtenerPorId(999);
-
-        assertEquals(404, response.getStatusCodeValue());
+        mockMvc.perform(get("/api/v1/logistica/999"))
+                .andExpect(status().isNotFound());
     }
 
     @Test
-    public void testCrear() {
-        LogisticaModel nueva = new LogisticaModel(3, "terrestre", "Rancagua", LocalDate.now(), LocalDate.now().plusDays(1), "Lucía");
-        when(logisticaService.guardar(nueva)).thenReturn(nueva);
+    public void testCrear() throws Exception {
+        Mockito.when(logisticaService.guardar(any(LogisticaModel.class))).thenReturn(logistica);
 
-        ResponseEntity<LogisticaModel> response = logisticaController.crear(nueva);
-
-        assertEquals(201, response.getStatusCodeValue());
-        assertEquals("Rancagua", response.getBody().getDestino());
+        mockMvc.perform(post("/api/v1/logistica")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(logistica)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("id").value(1))
+                .andExpect(jsonPath("tipoTransporte").value("terrestre"));
     }
 
     @Test
-    public void testActualizar_Correcto() {
-        LogisticaModel actualizada = new LogisticaModel(4, "aéreo", "La Serena", LocalDate.now(), LocalDate.now().plusDays(2), "Pedro");
-        when(logisticaService.actualizar(actualizada)).thenReturn(actualizada);
+    public void testActualizar_Existe() throws Exception {
+        Mockito.when(logisticaService.actualizar(any(LogisticaModel.class))).thenReturn(logistica);
 
-        ResponseEntity<LogisticaModel> response = logisticaController.actualizar(4, actualizada);
-
-        assertEquals(200, response.getStatusCodeValue());
-        assertEquals("Pedro", response.getBody().getEncargado());
+        mockMvc.perform(put("/api/v1/logistica/1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(logistica)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("id").value(1));
     }
 
     @Test
-    public void testActualizar_IdDistinto() {
-        LogisticaModel log = new LogisticaModel(5, "marítimo", "Antofagasta", LocalDate.now(), LocalDate.now().plusDays(5), "Laura");
-
-        ResponseEntity<LogisticaModel> response = logisticaController.actualizar(99, log);
-
-        assertEquals(400, response.getStatusCodeValue());
+    public void testActualizar_IdDistinto() throws Exception {
+        logistica.setId(2);
+        mockMvc.perform(put("/api/v1/logistica/1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(logistica)))
+                .andExpect(status().isBadRequest());
     }
 
     @Test
-    public void testEliminar_Existe() {
-        when(logisticaService.eliminar(6)).thenReturn(true);
+    public void testEliminar_Existe() throws Exception {
+        Mockito.when(logisticaService.eliminar(1)).thenReturn(true);
 
-        ResponseEntity<Void> response = logisticaController.eliminar(6);
-
-        assertEquals(204, response.getStatusCodeValue());
+        mockMvc.perform(delete("/api/v1/logistica/1"))
+                .andExpect(status().isNoContent());
     }
 
     @Test
-    public void testEliminar_NoExiste() {
-        when(logisticaService.eliminar(7)).thenReturn(false);
+    public void testEliminar_NoExiste() throws Exception {
+        Mockito.when(logisticaService.eliminar(999)).thenReturn(false);
 
-        ResponseEntity<Void> response = logisticaController.eliminar(7);
-
-        assertEquals(404, response.getStatusCodeValue());
+        mockMvc.perform(delete("/api/v1/logistica/999"))
+                .andExpect(status().isNotFound());
     }
 }

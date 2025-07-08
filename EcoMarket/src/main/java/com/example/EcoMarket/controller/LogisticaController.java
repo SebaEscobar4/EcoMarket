@@ -2,12 +2,18 @@ package com.example.EcoMarket.controller;
 
 import com.example.EcoMarket.model.LogisticaModel;
 import com.example.EcoMarket.service.LogisticaService;
+
+import org.springframework.hateoas.EntityModel;
+import org.springframework.hateoas.CollectionModel;
+import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.*;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/v1/logistica")
@@ -20,29 +26,52 @@ public class LogisticaController {
     }
 
     @GetMapping
-    public ResponseEntity<List<LogisticaModel>> obtenerTodas() {
-        return ResponseEntity.ok(logisticaService.obtenerTodas());
+    public ResponseEntity<CollectionModel<EntityModel<LogisticaModel>>> obtenerTodas() {
+        List<EntityModel<LogisticaModel>> logisticaList = logisticaService.obtenerTodas().stream()
+                .map(logistica -> EntityModel.of(logistica,
+                        linkTo(methodOn(LogisticaController.class).obtenerPorId(logistica.getId())).withSelfRel(),
+                        linkTo(methodOn(LogisticaController.class).obtenerTodas()).withRel("todas")))
+                .collect(Collectors.toList());
+
+        return ResponseEntity.ok(CollectionModel.of(logisticaList,
+                linkTo(methodOn(LogisticaController.class).obtenerTodas()).withSelfRel()));
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<LogisticaModel> obtenerPorId(@PathVariable int id) {
+    public ResponseEntity<EntityModel<LogisticaModel>> obtenerPorId(@PathVariable int id) {
         Optional<LogisticaModel> logistica = logisticaService.buscarPorId(id);
-        return logistica.map(ResponseEntity::ok)
-                        .orElseGet(() -> ResponseEntity.notFound().build());
+
+        return logistica.map(l -> EntityModel.of(l,
+                        linkTo(methodOn(LogisticaController.class).obtenerPorId(id)).withSelfRel(),
+                        linkTo(methodOn(LogisticaController.class).obtenerTodas()).withRel("todas"),
+                        linkTo(methodOn(LogisticaController.class).eliminar(id)).withRel("eliminar"),
+                        linkTo(methodOn(LogisticaController.class).actualizar(id, l)).withRel("actualizar")))
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     @PostMapping
-    public ResponseEntity<LogisticaModel> crear(@RequestBody LogisticaModel logistica) {
-        return new ResponseEntity<>(logisticaService.guardar(logistica), HttpStatus.CREATED);
+    public ResponseEntity<EntityModel<LogisticaModel>> crear(@RequestBody LogisticaModel logistica) {
+        LogisticaModel guardada = logisticaService.guardar(logistica);
+
+        EntityModel<LogisticaModel> resource = EntityModel.of(guardada,
+                linkTo(methodOn(LogisticaController.class).obtenerPorId(guardada.getId())).withSelfRel(),
+                linkTo(methodOn(LogisticaController.class).obtenerTodas()).withRel("todas"));
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(resource);
     }
-@PutMapping("/{id}")
-    public ResponseEntity<LogisticaModel> actualizar(@PathVariable int id, @RequestBody LogisticaModel logistica) {
+
+    @PutMapping("/{id}")
+    public ResponseEntity<EntityModel<LogisticaModel>> actualizar(@PathVariable int id, @RequestBody LogisticaModel logistica) {
         if (id != logistica.getId()) {
             return ResponseEntity.badRequest().build();
         }
         LogisticaModel actualizada = logisticaService.actualizar(logistica);
         if (actualizada != null) {
-            return ResponseEntity.ok(actualizada);
+            EntityModel<LogisticaModel> resource = EntityModel.of(actualizada,
+                    linkTo(methodOn(LogisticaController.class).obtenerPorId(actualizada.getId())).withSelfRel(),
+                    linkTo(methodOn(LogisticaController.class).obtenerTodas()).withRel("todas"));
+            return ResponseEntity.ok(resource);
         } else {
             return ResponseEntity.notFound().build();
         }
@@ -51,10 +80,6 @@ public class LogisticaController {
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> eliminar(@PathVariable int id) {
         boolean eliminado = logisticaService.eliminar(id);
-        if (eliminado) {
-            return ResponseEntity.noContent().build();
-        } else {
-            return ResponseEntity.notFound().build();
-        }
+        return eliminado ? ResponseEntity.noContent().build() : ResponseEntity.notFound().build();
     }
 }
